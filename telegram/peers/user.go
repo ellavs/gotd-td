@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-faster/errors"
+	"go.uber.org/zap"
 
 	"github.com/gotd/td/constant"
 	"github.com/gotd/td/tg"
@@ -32,6 +33,27 @@ func (m *Manager) GetUser(ctx context.Context, p tg.InputUserClass) (User, error
 		return User{}, err
 	}
 	return m.User(user), nil
+}
+
+// GetUserFull gets *tg.UserFull and User using given tg.InputUserClass.
+func (m *Manager) GetUserFull(ctx context.Context, p tg.InputUserClass) (*tg.UserFull, *tg.User, error) {
+	fullUser, err := m.getUserFull(ctx, p)
+	if err != nil {
+		return nil, nil, err
+	}
+	userID, ok := m.getIDFromInputUser(p)
+	if !ok {
+		return fullUser, nil, nil
+	}
+	user, found, err := m.cache.FindUser(ctx, userID)
+	if err == nil && found {
+		user.SetFlags()
+		return fullUser, user, nil
+	}
+	if err != nil {
+		m.logger.Warn("Find user error", zap.Int64("user_id", userID), zap.Error(err))
+	}
+	return fullUser, nil, nil
 }
 
 // Raw returns raw *tg.User.
